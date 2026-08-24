@@ -1,0 +1,16 @@
+#!/sbin/sh
+#################
+umask 022
+OUTFD=$2
+ZIPFILE=$3
+mount /data 2>/dev/null
+
+if [ -f /data/adb/magisk/util_functions.sh ]; then
+  . /data/adb/magisk/util_functions.sh
+  install_module
+  exit $?
+fi
+
+echo "- Flash this module from the Magisk app,"
+echo "  KernelSU, KernelSU Next, SukiSU or APatch."
+exit 1
