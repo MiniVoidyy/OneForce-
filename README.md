@@ -43,11 +43,28 @@ su -c sh /data/adb/one_force/scripts/oneforce.sh set 6.1   # One UI target (6.0+
 su -c sh /data/adb/one_force/scripts/oneforce.sh android 15
 su -c sh /data/adb/one_force/scripts/oneforce.sh on        # apply spoof
 su -c sh /data/adb/one_force/scripts/oneforce.sh off       # revert to stock
+su -c sh /data/adb/one_force/scripts/oneforce.sh patch 2026-06-01   # security patch target
+su -c sh /data/adb/one_force/scripts/oneforce.sh flags patch off    # disable a spoof flag
 su -c sh /data/adb/one_force/scripts/oneforce.sh apps gal  # find packages
 su -c sh /data/adb/one_force/scripts/oneforce.sh revertapp com.samsung.android.app.spage
 su -c sh /data/adb/one_force/scripts/oneforce.sh apks      # list APK files
 su -c sh /data/adb/one_force/scripts/oneforce.sh installapk /sdcard/Download/app.apk
 ```
+
+## Changelog
+
+**V2**
+- Security patch spoofing (`ro.build.version.security_patch`) - unlocks more
+  Samsung apps that gate on recent patches
+- Advanced card in WebUI: live toggles for sem / android / patch props
+- App Tools now shows an UPDATED badge on system apps that have updates
+  installed, plus their active APK path
+- Stability: atomic config writes, validated config loading, operation locks,
+  log rotation, prop write verification with retries, post-boot drift check
+- Optional custom `ro.build.version.incremental` (edit config.conf)
+
+**V1**
+- Initial release.
 
 ## How revert works
 The first time a spoof is applied, the stock values of

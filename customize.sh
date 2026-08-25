@@ -38,14 +38,18 @@ ENABLED=true
 ONEUI_MAJOR=6
 ONEUI_MINOR=0
 ANDROID_VER=14
+SECURITY_PATCH=2026-06-01
+CUSTOM_INCREMENTAL=
 SPOOF_SEM=true
 SPOOF_RELEASE=true
+SPOOF_PATCH=true
 EOF
 fi
 
 chmod 644 $BASE/config.conf
 
 ui_print "- Spoof targets: One UI 6.0 / Android 14"
+ui_print "- Security patch spoof: 2026-06-01"
 ui_print "- Supported range: One UI 6.0 and above"
 ui_print "- Edit anytime from the WebUI or:"
 ui_print "${CYAN}  su -c sh /data/adb/one_force/scripts/oneforce.sh menu${RST}"

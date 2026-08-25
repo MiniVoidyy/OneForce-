@@ -209,6 +209,7 @@
   }
   .sysTag{background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.4);color:var(--green)}
   .userTag{background:rgba(139,148,158,.12);border:1px solid rgba(139,148,158,.4);color:#9aa7b5}
+  .updTag{background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.45);color:var(--amber)}
   .ract{
     flex:none;width:auto;margin-top:0;border-radius:10px;padding:9px 14px;font-size:12.5px;font-weight:700;
     color:#fff;background:linear-gradient(135deg,#2563eb,#1d4ed8);
@@ -217,6 +218,33 @@
   .ract:disabled{opacity:.35;pointer-events:none}
   .empty{color:var(--dim);font-size:12.5px;text-align:center;padding:14px 0}
   .hint{font-size:11.5px;color:var(--dim);margin-top:10px;line-height:1.55}
+
+  /* advanced */
+  .advRow{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:11px 2px;border-bottom:1px dashed rgba(96,165,250,.18);
+  }
+  .advRow:last-of-type{border-bottom:none}
+  .advRow b{display:block;font-size:13.5px}
+  .advRow small{color:var(--dim);font-size:11px}
+  .sw{position:relative;display:inline-block;width:46px;height:26px;flex:none}
+  .sw input{opacity:0;width:0;height:0}
+  .sw span{
+    position:absolute;inset:0;border-radius:99px;cursor:pointer;
+    background:rgba(8,28,61,.8);border:1px solid var(--line);transition:.2s;
+  }
+  .sw span::before{
+    content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;
+    border-radius:50%;background:#64748b;transition:.2s;
+  }
+  .sw input:checked + span{
+    background:linear-gradient(135deg,rgba(37,99,235,.55),rgba(29,78,216,.35));
+    border-color:rgba(96,165,250,.7);
+  }
+  .sw input:checked + span::before{
+    transform:translateX(20px);background:#fff;
+    box-shadow:0 0 8px rgba(96,165,250,.8);
+  }
 
   /* toast */
   #toast{
@@ -290,6 +318,7 @@
         <span class="k">Live oneui prop</span>    <span class="v mono" id="vOneui">—</span>
         <span class="k">Live sem prop</span>      <span class="v mono" id="vSem">—</span>
         <span class="k">Live Android / SDK</span> <span class="v" id="vRel">—</span>
+        <span class="k">Security patch</span>    <span class="v mono" id="vPatch">—</span>
         <span class="k">resetprop engine</span>   <span class="v" id="vRp">—</span>
         <span class="k">Originals saved</span>    <span class="v" id="vOrig">—</span>
       </div>
@@ -329,6 +358,26 @@
           <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>
           Reboot
         </button>
+      </div>
+    </section>
+
+    <section class="card">
+      <label class="k">ADVANCED</label>
+      <div class="advRow">
+        <div><b>sem prop</b><small>ro.build.version.sem</small></div>
+        <label class="sw"><input type="checkbox" id="swSem" onchange="flagToggle('sem',this)"><span></span></label>
+      </div>
+      <div class="advRow">
+        <div><b>Android version / SDK</b><small>release + sdk + incremental</small></div>
+        <label class="sw"><input type="checkbox" id="swRel" onchange="flagToggle('release',this)"><span></span></label>
+      </div>
+      <div class="advRow">
+        <div><b>Security patch</b><small>ro.build.version.security_patch</small></div>
+        <label class="sw"><input type="checkbox" id="swPat" onchange="flagToggle('patch',this)"><span></span></label>
+      </div>
+      <div class="searchRow" style="margin-top:12px">
+        <input type="text" id="patchDate" placeholder="patch date YYYY-MM-DD (or 'off')">
+        <button class="mini wbtn" onclick="savePatch()">Save</button>
       </div>
     </section>
 
@@ -376,7 +425,7 @@
     <code class="block" id="fbCode"></code>
   </section>
 
-  <footer>one force V1 &middot; by Mini_Voidyy &middot; one ui 6.0+ &middot; magisk / kernelsu / next / sukisu</footer>
+  <footer>one force V2 &middot; by Mini_Voidyy &middot; one ui 6.0+ &middot; magisk / kernelsu / next / sukisu</footer>
 </div>
 
 <div id="toast"></div>
@@ -492,6 +541,7 @@ async function refresh(show){
     $('vOneui').textContent=d.OF_CUR_ONEUI||'(absent)';
     $('vSem').textContent=d.OF_CUR_SEM||'(absent)';
     $('vRel').textContent='Android '+(d.OF_CUR_RELEASE||'?')+' · '+(d.OF_CUR_SDK||'?');
+    $('vPatch').textContent=(d.OF_CUR_PATCH||'(absent)')+' → '+(d.OF_TARGET_PATCH||'off');
     const rp=d.OF_RP==='true';
     $('vRp').textContent=rp?'found ✓':'missing ✗';
     $('vRp').className='v '+(rp?'ok':'bad');
@@ -502,6 +552,10 @@ async function refresh(show){
 
     pickChip('chipsOneUi',d.OF_ONEUI)||pickChip('chipsOneUi','6.0');
     pickChip('chipsAnd',d.OF_ANDROID)||pickChip('chipsAnd','14');
+    $('swSem').checked=d.OF_SEM==='true';
+    $('swRel').checked=d.OF_REL==='true';
+    $('swPat').checked=d.OF_PAT==='true';
+    if(document.activeElement!==$('patchDate'))$('patchDate').value=d.OF_TARGET_PATCH||'';
     if(show&&r.stderr&&r.stderr.trim())showLog(r.stderr.trim());
   }catch(e){console.error(e);}
 }
@@ -545,6 +599,19 @@ async function doReboot(){
   if(r.errno)toast('⚠ reboot failed — no root bridge');
   else toast('Rebooting…');
 }
+async function flagToggle(name,el){
+  if(busyFlag){el.checked=!el.checked;return;}
+  await execCmd(SCRIPT+' flags '+name+' '+(el.checked?'on':'off'));
+  showLog('$ flags '+name+' '+(el.checked?'on':'off'));
+  toast(name+' spoof '+(el.checked?'enabled':'disabled')+' — tap Apply');
+}
+async function savePatch(){
+  let v=$('patchDate').value.trim()||'off';
+  if(v!=='off'&&!/^\d{4}-\d{2}-\d{2}$/.test(v)){toast('⚠ use YYYY-MM-DD or off');return;}
+  await execCmd(SCRIPT+' patch '+shq(v));
+  showLog('$ patch '+v);
+  toast('patch target: '+v+' — tap Apply');
+}
 
 /* ===== app tools ===== */
 function shq(s){return "'"+String(s).replace(/'/g,"'\\''")+"'";}
@@ -560,8 +627,8 @@ async function searchApps(){
   const rows=[];
   out.split('\n').forEach(l=>{
     if(!l.startsWith('OFAPP|'))return;
-    const[pkg,ver,sys]=l.slice(6).split('|');
-    rows.push({pkg,ver,sys:sys==='1'});
+    const parts=l.slice(6).split('|');
+    rows.push({pkg:parts[0],ver:parts[1],sys:parts[2]==='1',upd:parts[3]==='1',path:parts[4]||''});
   });
   if(!rows.length){
     box.innerHTML='<div class="empty">'+(r.errno?'no results / engine unreachable':'no matching packages')+'</div>';
@@ -570,8 +637,10 @@ async function searchApps(){
   box.innerHTML=rows.map(a=>
     '<div class="rrow">'+
       '<div class="rinfo">'+
-        '<div class="rname">'+esc(a.pkg)+(a.sys?'<span class="tag sysTag">SYS</span>':'<span class="tag userTag">USER</span>')+'</div>'+
-        '<div class="rsub">version '+esc(a.ver)+'</div>'+
+        '<div class="rname">'+esc(a.pkg)+
+          (a.upd?'<span class="tag updTag">UPDATED</span>':(a.sys?'<span class="tag sysTag">SYS</span>':'<span class="tag userTag">USER</span>'))+
+        '</div>'+
+        '<div class="rsub">v'+esc(a.ver)+(a.path?' · '+esc(a.path):'')+'</div>'+
       '</div>'+
       '<button class="ract'+(a.sys?' w':'')+'" '+(a.sys?'':'disabled')+
         ' onclick="revertApp('+esc(JSON.stringify(a.pkg))+')">Revert</button>'+
