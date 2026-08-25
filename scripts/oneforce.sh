@@ -458,10 +458,27 @@ do_installapk(){
   case "$p" in *.apk|*.APK) ;; *)
     echo "${C_R}Not an APK file${C_0}"; return 1 ;;
   esac
+  pkg=$(pm dump "$p" 2>/dev/null | grep -m1 '^package=' | sed 's/^package=//;s/ .*//')
+  bd=""
+  state="NEW"
+  if [ -n "$pkg" ]; then
+    ap=$(active_apk_path "$pkg")
+    if [ -n "$ap" ]; then
+      if is_system_path "$ap"; then
+        state="STOCK"
+      else
+        state="UPDATED"
+        bd=$(backup_apk "$pkg")
+      fi
+    fi
+  fi
   echo "${C_C}Installing $(basename "$p") ...${C_0}"
   if pm install -r "$p" >/dev/null 2>&1; then
+    record_hist INSTALL "${pkg:-unknown}" "$state" "${bd:--}"
+    log "installed $p (prev=$state backup=${bd:--})"
     echo "${C_G}Installed successfully.${C_0}"
   else
+    [ -n "$bd" ] && rm -rf "$bd"
     echo "${C_R}Install failed:${C_0}"
     pm install -r "$p" 2>&1 | tail -n3
     return 1
@@ -474,6 +491,141 @@ is_system_path(){
     *) return 1;;
   esac
 }
+
+HIST="$BASE/applog.tsv"
+
+record_hist(){
+  mkdir -p "$BASE"
+  printf '%s %s %s %s %s\n' "$(date '+%s')" "$1" "$2" "${3:--}" "${4:--}" >> "$HIST"
+}
+
+active_apk_path(){
+  pm path "$1" 2>/dev/null | head -n1 | sed 's/^package://'
+}
+
+backup_apk(){
+  p="$1"
+  [ -n "$p" ] || return 0
+  bd="$BASE/backups/${p}-$(date '+%s')"
+  mkdir -p "$bd" || return 0
+  ok=0
+  for f in $(pm path "$p" 2>/dev/null | sed 's/^package://'); do
+    case "$f" in
+      *.apk) ;;
+      *) continue ;;
+    esac
+    sz=$(wc -c < "$f" 2>/dev/null)
+    if [ "${sz:-0}" -gt 1048576000 ]; then
+      log "backup skipped (too big): $f"
+      continue
+    fi
+    cp -f "$f" "$bd/" 2>/dev/null && ok=$((ok + 1))
+  done
+  if [ "$(ls "$bd" 2>/dev/null | grep -c '.apk')" -ge 1 ]; then
+    echo "$bd"
+  else
+    rm -rf "$bd"
+    echo ""
+  fi
+}
+
+restore_backup(){
+  d="$1"
+  base="$d/base.apk"
+  [ -f "$base" ] || base=$(ls "$d"/*.apk 2>/dev/null | head -n1)
+  [ -n "$base" ] && [ -f "$base" ] || { echo "${C_R}No usable APK in backup.${C_0}"; return 1; }
+  splits=$(ls "$d"/*.apk 2>/dev/null | grep -v "^$base\$")
+  if [ -z "$splits" ]; then
+    if pm install -r -d "$base" >/dev/null 2>&1; then
+      echo "${C_G}Restored from backup.${C_0}"
+      return 0
+    fi
+    echo "${C_R}Restore failed.${C_0}"
+    return 1
+  fi
+  sid=$(pm install-create -r 2>/dev/null | grep -o '[0-9]\+' | head -n1)
+  if [ -z "$sid" ]; then
+    pm install -r -d "$base" >/dev/null 2>&1 || { echo "${C_R}Restore failed.${C_0}"; return 1; }
+    echo "${C_G}Restored (base only).${C_0}"
+    return 0
+  fi
+  pm install-write "$sid" base "$base" >/dev/null 2>&1
+  for s in $splits; do
+    nm=$(basename "$s" .apk)
+    pm install-write "$sid" "$nm" "$s" >/dev/null 2>&1
+  done
+  out=$(pm install-commit "$sid" 2>&1)
+  case "$out" in *Success*|*success*)
+    echo "${C_G}Restored from backup (with splits).${C_0}"
+    return 0 ;;
+  esac
+  echo "${C_R}Restore failed: $out${C_0}"
+  return 1
+}
+
+do_undo(){
+  idx="${2:-1}"
+  case "$idx" in ''|*[!0-9]*) idx=1 ;; esac
+  [ -f "$HIST" ] || { echo "${C_Y}No app history yet.${C_0}"; return 1; }
+  total=$(grep -c '' "$HIST")
+  [ "$total" -ge 1 ] || { echo "${C_Y}No app history yet.${C_0}"; return 1; }
+  tgt=$(( total - idx + 1 ))
+  [ "$tgt" -ge 1 ] || { echo "${C_R}No such history entry.${C_0}"; return 1; }
+  line=$(sed -n "${tgt}p" "$HIST")
+  ts=$(echo "$line" | cut -d' ' -f1)
+  act=$(echo "$line" | cut -d' ' -f2)
+  pkg=$(echo "$line" | cut -d' ' -f3)
+  extra=$(echo "$line" | cut -d' ' -f4)
+  bd=$(echo "$line" | cut -d' ' -f5)
+  log "undo #$idx: $act $pkg"
+  case "$act" in
+    REVERT)
+      if [ -n "$bd" ] && [ "$bd" != "-" ] && [ -d "$bd" ]; then
+        echo "${C_C}Re-applying the update we removed from $pkg ...${C_0}"
+        restore_backup "$bd"
+        record_hist UNDO "$pkg" "$ts" "-"
+      else
+        echo "${C_Y}No backup stored for this change - cannot re-apply.${C_0}"
+        return 1
+      fi ;;
+    INSTALL)
+      if [ -n "$bd" ] && [ "$bd" != "-" ] && [ -d "$bd" ]; then
+        echo "${C_C}Rolling $pkg back to the version before your install ...${C_0}"
+        restore_backup "$bd"
+      elif [ "$extra" = "STOCK" ]; then
+        echo "${C_C}$pkg was stock before - removing the update ...${C_0}"
+        pm uninstall --user 0 "$pkg" >/dev/null 2>&1 && echo "${C_G}Done.${C_0}"
+      else
+        echo "${C_C}$pkg was not installed before - removing it ...${C_0}"
+        pm uninstall --user 0 "$pkg" >/dev/null 2>&1 && echo "${C_G}Done.${C_0}"
+      fi
+      record_hist UNDO "$pkg" "$ts" "-" ;;
+    *)
+      echo "${C_Y}Nothing to undo for this entry.${C_0}"
+      return 1 ;;
+  esac
+}
+
+hist_cmd(){
+  [ -f "$HIST" ] && [ "$(grep -c '' "$HIST" 2>/dev/null)" -ge 1 ] || return 0
+  total=$(grep -c '' "$HIST")
+  n=$total
+  while [ "$n" -ge 1 ]; do
+    line=$(sed -n "${n}p" "$HIST")
+    idx=$(( total - n + 1 ))
+    ts=$(echo "$line" | cut -d' ' -f1)
+    act=$(echo "$line" | cut -d' ' -f2)
+    pkg=$(echo "$line" | cut -d' ' -f3)
+    bd=$(echo "$line" | cut -d' ' -f5)
+    hb=n
+    [ -n "$bd" ] && [ "$bd" != "-" ] && [ -d "$bd" ] && hb=y
+    tm=$(date -u -d "@$ts" '+%m-%d %H:%M' 2>/dev/null || echo "$ts")
+    echo "OFHIST|$idx|$tm|$act|$pkg|$hb"
+    n=$((n - 1))
+    [ $(( total - n )) -ge 15 ] && break
+  done
+}
+
 
 list_apps(){
   q=$(echo "${1:-}" | tr 'A-Z' 'a-z')
@@ -503,7 +655,7 @@ do_revertapp(){
     echo "${C_R}Usage: revertapp <package>${C_0}"
     return 1
   fi
-  pp=$(pm path "$p" 2>/dev/null | head -n1 | sed 's/^package://')
+  pp=$(active_apk_path "$p")
   if [ -z "$pp" ]; then
     echo "${C_R}Package not found: $p${C_0}"
     return 1
@@ -512,11 +664,19 @@ do_revertapp(){
     echo "${C_Y}$p is not a system app - no factory version to revert to.${C_0}"
     return 1
   fi
+  bd=""
+  case "$pp" in /data/app/*) bd=$(backup_apk "$p") ;; esac
   echo "${C_C}Reverting updates for $p ...${C_0}"
   if pm uninstall --user 0 "$p" >/dev/null 2>&1; then
-    log "reverted app $p"
-    echo "${C_G}$p reverted to its factory (stock) version. App data kept.${C_0}"
+    record_hist REVERT "$p" "-" "${bd:--}"
+    log "reverted app $p (backup=${bd:--})"
+    if [ -n "$bd" ]; then
+      echo "${C_G}$p reverted to stock. Update backed up - undoable from App Tools.${C_0}"
+    else
+      echo "${C_G}$p reverted to its factory (stock) version. App data kept.${C_0}"
+    fi
   else
+    [ -n "$bd" ] && rm -rf "$bd"
     echo "${C_R}Revert failed for $p (it may have no updates installed).${C_0}"
     return 1
   fi
@@ -541,5 +701,7 @@ case "$1" in
   installapk) do_installapk "$2";;
   apps)       list_apps "$2";;
   revertapp)  do_revertapp "$2";;
-  *)          echo "usage: oneforce.sh {on|off|toggle|apply|revert|status|menu|json|verify|set X.Y|android N|patch DATE|flags NAME on/off|apks|installapk F|apps Q|revertapp P}";;
+  hist)       hist_cmd;;
+  undo)       do_undo "undo" "$2";;
+  *)          echo "usage: oneforce.sh {on|off|toggle|apply|revert|status|menu|json|verify|set X.Y|android N|patch DATE|flags NAME on/off|apks|installapk F|apps Q|revertapp P|hist|undo [N]}";;
 esac

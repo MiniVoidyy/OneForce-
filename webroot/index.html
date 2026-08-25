@@ -412,6 +412,16 @@
       <div class="results" id="apkResults"></div>
     </section>
 
+    <section class="card">
+      <label class="k">RECENT CHANGES</label>
+      <button class="ghost" style="margin-top:0;margin-bottom:10px" onclick="loadHist()">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+        Refresh history
+      </button>
+      <div class="results" id="histResults"></div>
+      <div class="hint">Every install and revert is backed up first — Undo restores exactly what was on the device before that change.</div>
+    </section>
+
   </div><!-- /pageApps -->
 
   <!-- shared console -->
@@ -650,9 +660,9 @@ async function searchApps(){
 async function revertApp(pkg){
   if(busyFlag)return;
   const res=await runCmd(SCRIPT+' revertapp '+shq(pkg),'');
-  const ok=res&&res.out.includes('reverted to its factory');
+  const ok=res&&res.out.includes('reverted to stock')||res&&res.out.includes('reverted to its factory');
   toast(ok?'✔ '+pkg+' reverted to stock version':'⚠ '+(res?(res.out.split('\n')[0].slice(0,60)||'revert failed'):'failed'));
-  if(res&&ok)searchApps();
+  if(res&&ok){searchApps();loadHist();}
 }
 async function scanApks(){
   if(busyFlag)return;
@@ -685,6 +695,7 @@ async function installApk(path){
   const res=await runCmd(SCRIPT+' installapk '+shq(path),'');
   const ok=res&&res.out.includes('Installed successfully');
   toast(ok?'✔ installed '+path.split('/').pop():'⚠ '+(res?(res.out.split('\n').slice(-1)[0].slice(0,60)||'install failed'):'failed'));
+  if(res&&ok)loadHist();
 }
 function installFromInput(){
   const p=$('apkPath').value.trim();
@@ -692,8 +703,48 @@ function installFromInput(){
   installApk(p);
 }
 
+/* ===== history / undo ===== */
+async function loadHist(){
+  if(busyFlag)return;
+  const box=$('histResults');
+  box.innerHTML='<div class="empty">loading history…</div>';
+  const r=await execCmd(SCRIPT+' hist');
+  const rows=[];
+  ((r.stdout||'')+(r.stderr||'')).split('\n').forEach(l=>{
+    if(!l.startsWith('OFHIST|'))return;
+    const p=l.slice(6).split('|');
+    rows.push({idx:p[0],time:p[1],act:p[2],pkg:p[3],hb:p[4]});
+  });
+  if(!rows.length){
+    box.innerHTML='<div class="empty">no app changes yet</div>';
+    return;
+  }
+  box.innerHTML=rows.map(a=>{
+    const undoable=a.hb==='y'||a.act==='INSTALL'||a.act==='REVERT';
+    const actCls={REVERT:'w',INSTALL:'',UNDO:'w'}[a.act]||'';
+    return '<div class="rrow">'+
+      '<div class="rinfo">'+
+        '<div class="rname">'+esc(a.pkg)+'<span class="tag '+(a.act==='UNDO'?'userTag':'sysTag')+'">'+esc(a.act)+'</span></div>'+
+        '<div class="rsub">'+esc(a.time)+(a.hb==='y'?' · backup stored':'')+'</div>'+
+      '</div>'+
+      (a.act==='UNDO'
+        ?'<button class="ract" disabled>Undone</button>'
+        :'<button class="ract'+(undoable?' w':'')+'" '+(undoable?'':'disabled')+
+         ' onclick="doUndo('+a.idx+')">Undo</button>')+
+    '</div>';
+  }).join('');
+}
+async function doUndo(i){
+  const res=await runCmd(SCRIPT+' undo '+i,'');
+  toast(res&&res.out.includes('Restored')||res&&res.out.includes('Done')
+    ?'✔ change #'+i+' undone'
+    :'⚠ '+((res?res.out.split('\n')[0]:'failed').slice(0,60)||'undo failed'));
+  loadHist();
+}
+
 (async()=>{
   await refresh(false);
+  loadHist();
 })();
 </script>
 </body>

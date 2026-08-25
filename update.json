@@ -3,7 +3,7 @@
     "version": "V2",
     "versionCode": 2,
     "zipUrl": "https://github.com/MiniVoidyy/OneForce-/releases/download/V2/OneForce-V2.zip",
-    "changelog": "Security patch spoofing, advanced toggles in WebUI, UPDATED badge in App Tools, stability hardening (atomic config writes, locks, log rotation, post-boot verification)."
+    "changelog": "Security patch spoofing, advanced WebUI toggles, UPDATED badges, backup & undo for every app change, stability hardening."
   },
   {
     "version": "V1",

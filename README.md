@@ -5,9 +5,9 @@ spoofs your One UI / Android version so the Galaxy Store serves app updates
 to devices it would normally block.
 
 ## Download
-Grab **`OneForce-V1.zip`** from this repo and flash it in your manager app.
-Managers with update support will pick up new versions automatically via
-`update.json`.
+Grab **`OneForce-V2.zip`** from the [releases page](https://github.com/MiniVoidyy/OneForce-/releases/latest)
+or from this repo. Managers with update support pick up new versions
+automatically via `update.json`.
 
 ## Compatibility
 Works with **Magisk**, **KernelSU**, **KernelSU Next**, **SukiSU** and
@@ -59,6 +59,10 @@ su -c sh /data/adb/one_force/scripts/oneforce.sh installapk /sdcard/Download/app
 - Advanced card in WebUI: live toggles for sem / android / patch props
 - App Tools now shows an UPDATED badge on system apps that have updates
   installed, plus their active APK path
+- **Backup & Undo for app changes**: every revert/install snapshots the app's
+  APKs to `/data/adb/one_force/backups/` first; the RECENT CHANGES list in
+  App Tools can undo any change (re-apply a removed update, roll back an
+  install, or remove a newly installed app). Terminal: `hist`, `undo [N]`
 - Stability: atomic config writes, validated config loading, operation locks,
   log rotation, prop write verification with retries, post-boot drift check
 - Optional custom `ro.build.version.incremental` (edit config.conf)
