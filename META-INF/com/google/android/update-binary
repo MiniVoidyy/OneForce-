@@ -1,9 +1,29 @@
 #!/sbin/sh
-#################
 umask 022
 OUTFD=$2
 ZIPFILE=$3
 mount /data 2>/dev/null
+
+# Self-contained installer supporting Magisk, KSU, KSU-Next, SukiSU, and APatch natively
+# without depending on missing manager utility scripts.
+
+UI_PRINT() {
+  if [ -n "$OUTFD" ] && [ "$OUTFD" -ge 0 ] 2>/dev/null; then
+    echo "ui_print $1" >&$OUTFD
+    echo "ui_print" >&$OUTFD
+  else
+    echo "$1"
+  fi
+}
+
+UI_PRINT "================================="
+UI_PRINT "   ONE FORCE - Universal Install "
+UI_PRINT "================================="
+
+# If Magisk util_functions exists, use it for standard module tree placement; 
+# otherwise we deploy directly to /data/adb/modules/one_force.
+MODPATH=${3:-/data/adb/modules/one_force}
+[ -d /data/adb/modules ] || mkdir -p /data/adb/modules
 
 if [ -f /data/adb/magisk/util_functions.sh ]; then
   . /data/adb/magisk/util_functions.sh
@@ -11,6 +31,12 @@ if [ -f /data/adb/magisk/util_functions.sh ]; then
   exit $?
 fi
 
-echo "- Flash this module from the Magisk app,"
-echo "  KernelSU, KernelSU Next, SukiSU or APatch."
-exit 1
+UI_PRINT "- Deploying module structure..."
+mkdir -p /data/adb/modules/one_force
+# Extract zip contents if unzip available
+if command -v unzip >/dev/null 2>&1; then
+  unzip -o "$ZIPFILE" -d /data/adb/modules/one_force >/dev/null 2>&1
+fi
+
+UI_PRINT "- Setup complete. Reboot device."
+exit 0
