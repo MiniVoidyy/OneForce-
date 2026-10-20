@@ -1,11 +1,11 @@
 # One Force
 
-Blue-themed root module by [Mini_Voidyy](https://github.com/MiniVoidyy) that
+root module by [Mini_Voidyy](https://github.com/MiniVoidyy) that
 spoofs your One UI / Android version so the Galaxy Store serves app updates
 to devices it would normally block.
 
 ## Download
-Grab **`OneForce-V2.zip`** from the [releases page](https://github.com/MiniVoidyy/OneForce-/releases/latest)
+Grab **`OneForce- V3.zip`** from the [releases page](https://github.com/MiniVoidyy/OneForce-/releases/latest)
 or from this repo. Managers with update support pick up new versions
 automatically via `update.json`.
 
